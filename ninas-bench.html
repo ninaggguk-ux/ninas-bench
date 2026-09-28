@@ -1,0 +1,1093 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="description" content="Benchmark and compare your local LLMs and quants — speed, quality, and a pick for the best one. Single file, zero dependencies.">
+<title>Nina`s Bench — local model &amp; quant comparison</title>
+<style>
+  :root{
+    --bg:#0e1116; --panel:#151b23; --panel2:#1c2430; --border:#2a3547;
+    --text:#e7edf5; --muted:#8fa0b5; --accent:#34d399; --accent-dim:#17362c;
+    --amber:#fbbf24; --red:#f87171; --blue:#60a5fa;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:radial-gradient(1200px 500px at 70% -10%, #182432 0%, var(--bg) 55%) fixed, var(--bg);
+    color:var(--text); line-height:1.5;
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  .wrap{max-width:1120px;margin:0 auto;padding:28px 20px 60px}
+  h1{font-size:24px;margin:0;letter-spacing:.3px}
+  h2{font-size:15px;text-transform:uppercase;letter-spacing:1.2px;color:var(--muted);margin:0 0 12px}
+  .sub{color:var(--muted);margin:4px 0 0;font-size:14px}
+  header.top{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:18px 20px;margin-bottom:16px}
+  .row{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-top:10px}
+  label{font-size:13.5px;color:var(--muted);display:flex;flex-direction:column;gap:5px}
+  label.inline{flex-direction:row;align-items:center;gap:8px}
+  input,select,textarea{
+    background:#0d1219;border:1px solid var(--border);color:var(--text);
+    border-radius:8px;padding:8px 10px;font-size:14px;font-family:inherit;min-width:120px;
+  }
+  textarea{resize:vertical}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent)}
+  .grow{flex:1;min-width:220px}
+  .btn{
+    background:var(--panel2);border:1px solid var(--border);color:var(--text);
+    border-radius:9px;padding:8px 14px;font-size:13.5px;cursor:pointer;transition:.15s;
+  }
+  .btn:hover:not(:disabled){border-color:#3d4c66;background:#232e3f}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#06130d;font-weight:600}
+  .btn.primary:hover:not(:disabled){filter:brightness(1.1)}
+  .btn.danger:hover:not(:disabled){border-color:var(--red);color:var(--red)}
+  .btn.small{padding:5px 10px;font-size:12.5px}
+  .btn.big{padding:11px 22px;font-size:15px}
+  .muted{color:var(--muted);font-size:13px}
+  .hint{color:var(--muted);font-size:12.5px;margin:-4px 0 12px}
+  .tag{display:inline-block;background:#232e3f;border:1px solid var(--border);color:var(--muted);
+       border-radius:6px;padding:1px 7px;font-size:11.5px;margin-left:6px;vertical-align:1px}
+  .tag.est{color:var(--amber)}
+  .tag.judge{color:var(--blue)}
+  .model-list{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
+  .mitem{display:flex;align-items:center;gap:10px;background:var(--panel2);border:1px solid var(--border);
+         border-radius:9px;padding:9px 12px;font-size:14px;cursor:pointer}
+  .mitem:hover{border-color:#3d4c66}
+  .mitem input{width:auto;min-width:0}
+  .mname{flex:1;word-break:break-all}
+  .task-row{display:flex;gap:12px;align-items:flex-start;background:var(--panel2);border:1px solid var(--border);
+            border-radius:10px;padding:12px;margin-bottom:10px}
+  .task-row input.onchk{margin-top:3px;width:auto;min-width:0}
+  .task-main{flex:1;display:flex;flex-direction:column;gap:8px}
+  .controls-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin-top:16px;padding-top:14px;border-top:1px solid var(--border)}
+  .judgebox{margin-top:14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;background:#131a24;border:1px dashed var(--border);border-radius:10px;padding:12px}
+  .runbar{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+  .prog{flex:1;min-width:220px;height:10px;background:#0d1219;border-radius:6px;overflow:hidden;border:1px solid var(--border)}
+  #progFill{height:100%;width:0%;background:linear-gradient(90deg,#1f8a63,var(--accent));transition:width .25s}
+  #statusLine{flex-basis:100%;font-size:13.5px;min-height:20px;font-family:ui-monospace,Consolas,monospace}
+  #statusLine.err{color:var(--red)}
+  #statusLine.ok{color:var(--accent)}
+  .banner{border-radius:12px;padding:14px 16px;margin-bottom:18px;font-size:14.5px;border:1px solid}
+  .banner.good{background:#10231c;border-color:#1e4d3a;color:#c9f2df}
+  .banner.neutral{background:#141b26;border-color:var(--border);color:var(--text)}
+  .banner b{font-weight:700}
+  .banner ul{margin:8px 0 0;padding-left:20px}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th,td{padding:9px 10px;border-bottom:1px solid #222d3e;text-align:left;vertical-align:top}
+  thead th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.6px;white-space:nowrap;user-select:none}
+  tbody tr:hover{background:#1a2330}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  thead th[data-key]{cursor:pointer}
+  thead th[data-key]:hover{color:var(--text)}
+  .top-row{background:#12241d !important}
+  .charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;margin:8px 0 22px}
+  .chart{background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+  .chart h3{margin:0 0 12px;font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px}
+  .bar-row{display:flex;align-items:center;gap:10px;margin-bottom:9px;font-size:12.5px}
+  .bar-label{flex:0 0 46%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .bar-track{flex:1;height:12px;background:#0d1219;border-radius:5px;overflow:hidden}
+  .bar-fill{height:100%;border-radius:5px;background:linear-gradient(90deg,#1f8a63,var(--accent))}
+  .bar-fill.lat{background:linear-gradient(90deg,#b4741c,var(--amber))}
+  .bar-val{flex:0 0 72px;text-align:right;font-variant-numeric:tabular-nums;color:var(--muted)}
+  #outGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px}
+  .task-head{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;margin-top:6px}
+  .task-head h3{margin:0;font-size:15px}
+  .out-card{background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px}
+  .out-head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+  .out-model{font-weight:600;font-size:13.5px;word-break:break-all}
+  .stars{display:flex;gap:2px}
+  .star{background:none;border:none;color:#3a475c;font-size:18px;cursor:pointer;padding:1px 2px;line-height:1}
+  .star.on{color:var(--amber)}
+  .star:hover{transform:scale(1.15)}
+  pre.out-text{white-space:pre-wrap;word-break:break-word;font-size:13px;margin:0;background:#0d1219;border:1px solid #222d3e;
+               border-radius:8px;padding:10px 12px;max-height:300px;overflow:auto;font-family:ui-monospace,Consolas,monospace}
+  details.think{font-size:12.5px;color:var(--muted)}
+  details.think summary{cursor:pointer}
+  .judge-reason{font-size:12px;color:#9db8dd;background:#131c2b;border-radius:7px;padding:6px 9px}
+  .err-text{color:var(--red);font-size:12.5px}
+  footer{margin-top:26px;color:var(--muted);font-size:12.5px}
+  details.about summary{cursor:pointer;margin-bottom:6px}
+  kbd{background:#232e3f;border:1px solid var(--border);border-radius:4px;padding:0 5px;font-size:11px}
+
+  /* ============ help system ============ */
+  .help-link{margin-left:8px;background:none;border:1px solid var(--border);color:var(--muted);width:20px;height:20px;
+    border-radius:50%;font-size:11.5px;line-height:1;cursor:pointer;padding:0;vertical-align:2px;font-family:inherit}
+  .help-link:hover{color:var(--accent);border-color:var(--accent)}
+  .help-overlay{position:fixed;inset:0;background:rgba(10,14,20,.72);backdrop-filter:blur(5px);
+    display:flex;align-items:center;justify-content:center;z-index:100;padding:20px}
+  .help-overlay[hidden]{display:none}
+  .help-modal{background:var(--panel);border:1px solid var(--border);border-radius:16px;width:min(940px,96vw);
+    max-height:88vh;display:flex;flex-direction:column;box-shadow:0 24px 70px rgba(0,0,0,.55)}
+  .help-header{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:15px 20px;
+    border-bottom:1px solid var(--border);flex:0}
+  .help-header h2{margin:0;font-size:16px;text-transform:none;letter-spacing:.3px;color:var(--text)}
+  .help-close{background:none;border:1px solid var(--border);color:var(--muted);width:34px;height:34px;
+    border-radius:9px;font-size:20px;line-height:1;cursor:pointer}
+  .help-close:hover{color:var(--text);border-color:#3d4c66}
+  .help-body{display:flex;min-height:0;flex:1}
+  .help-toc{flex:0 0 195px;border-right:1px solid var(--border);padding:14px 10px;display:flex;
+    flex-direction:column;gap:2px;overflow-y:auto}
+  .toc-link{background:none;border:none;text-align:left;color:var(--muted);font-size:13px;padding:7px 10px;
+    border-radius:7px;cursor:pointer;font-family:inherit}
+  .toc-link:hover{color:var(--text);background:#1a2330}
+  .toc-link.active{color:var(--accent);background:var(--accent-dim)}
+  .help-content{flex:1;overflow-y:auto;padding:20px 26px 34px;scroll-behavior:smooth}
+  .help-section{margin-bottom:30px}
+  .help-section h3{font-size:13.5px;text-transform:uppercase;letter-spacing:1px;color:var(--accent);margin:0 0 10px}
+  .help-section p,.help-section li{font-size:14px;color:#d5e0ef;margin:8px 0;line-height:1.55}
+  .help-section ul,.help-section ol{margin:8px 0;padding-left:20px}
+  .help-section code{background:#0d1219;border:1px solid #222d3e;border-radius:5px;padding:1px 6px;
+    font-size:12.5px;font-family:ui-monospace,Consolas,monospace;color:#c9d7ea}
+  .callout{border-radius:9px;padding:10px 13px;font-size:13.5px;margin:10px 0;border:1px solid;line-height:1.5}
+  .callout.tip{background:#12233a;border-color:#27466d;color:#cfe3fb}
+  .callout.warn{background:#2b2410;border-color:#6b5a1e;color:#f3e2b0}
+  .help-table{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:8px}
+  .help-table th,.help-table td{padding:8px 10px;border-bottom:1px solid #222d3e;text-align:left;vertical-align:top}
+  .help-table th{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.6px}
+  @media (max-width:760px){
+    .help-body{flex-direction:column}
+    .help-toc{flex:none;border-right:none;border-bottom:1px solid var(--border);flex-direction:row;
+      overflow-x:auto;padding:10px 12px;gap:4px}
+    .toc-link{white-space:nowrap}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div>
+      <h1>📊 Nina`s Bench</h1>
+      <p class="sub">Benchmark &amp; compare your local models and quants — speed, quality, and a pick for the best one.</p>
+    </div>
+    <div class="actions" style="display:flex;gap:8px;flex-wrap:wrap">
+      <button id="helpBtn" class="btn small" title="Help &amp; guide (press ?)">? Help</button>
+      <button id="exportCsvBtn" class="btn" disabled>Export CSV</button>
+      <button id="exportJsonBtn" class="btn" disabled>Export JSON</button>
+      <button id="clearResultsBtn" class="btn danger" disabled>Clear results</button>
+    </div>
+  </header>
+
+  <!-- ============ 1 · SERVER ============ -->
+  <section class="card">
+    <h2>1 · Server <button class="help-link" data-help="server" aria-label="Help: server setup">?</button></h2>
+    <div class="row">
+      <label>Provider
+        <select id="providerSel">
+          <option value="openai" selected>LM Studio / OpenAI-compatible</option>
+          <option value="ollama">Ollama</option>
+        </select>
+      </label>
+      <label class="grow">Base URL
+        <input id="urlInput" type="text" spellcheck="false" placeholder="http://localhost:1234/v1">
+      </label>
+      <label>API key (optional)
+        <input id="keyInput" type="password" placeholder="usually not needed locally">
+      </label>
+    </div>
+    <div class="row">
+      <button id="connectBtn" class="btn primary">Connect &amp; load models</button>
+      <span id="connStatus" class="muted"></span>
+    </div>
+  </section>
+
+  <!-- ============ 2 · MODELS ============ -->
+  <section class="card">
+    <h2>2 · Models to test <button class="help-link" data-help="models" aria-label="Help: models and quants">?</button></h2>
+    <p class="hint">Each entry is one model + quant. Select several quants of the same base model to compare them head-to-head.</p>
+    <div id="modelList" class="model-list"></div>
+    <div class="row" style="margin-top:0">
+      <button id="selAllBtn" class="btn small">Select all</button>
+      <button id="selNoneBtn" class="btn small">Clear selection</button>
+    </div>
+  </section>
+
+  <!-- ============ 3 · SUITE ============ -->
+  <section class="card">
+    <h2>3 · Benchmark suite <button class="help-link" data-help="suite" aria-label="Help: benchmark suite and settings">?</button></h2>
+    <p class="hint">Edit prompts or add your own tasks. Answers are capped at the max-token limit so runs stay fast and comparable.</p>
+    <div id="tasksBox"></div>
+    <button id="addTaskBtn" class="btn small">+ Add task</button>
+
+    <div class="controls-grid">
+      <label>Max tokens per answer
+        <select id="maxTokensSel">
+          <option value="64">64</option><option value="128">128</option>
+          <option value="256" selected>256</option><option value="512">512</option>
+        </select>
+      </label>
+      <label>Runs per model × task
+        <select id="runsSel">
+          <option value="1" selected>1 (fast)</option><option value="2">2</option><option value="3">3 (most stable)</option>
+        </select>
+      </label>
+      <label>Temperature
+        <input id="tempInput" type="number" min="0" max="2" step="0.1">
+      </label>
+      <label class="inline"><input id="warmupChk" type="checkbox"> Warm-up pass first (recommended — excludes model load time)</label>
+    </div>
+
+    <div class="judgebox">
+      <label class="inline"><input id="judgeChk" type="checkbox"> Auto-score quality with a judge model</label>
+      <select id="judgeModelSel"><option value="">— pick judge model —</option></select>
+      <span class="hint" style="margin:0">Tip: use a different (ideally stronger) model as judge when possible. Adds one extra call per output.</span>
+    </div>
+  </section>
+
+  <!-- ============ RUN BAR ============ -->
+  <section class="card runbar">
+    <button id="runBtn" class="btn primary big">▶ Run benchmark</button>
+    <button id="cancelBtn" class="btn" disabled>Cancel</button>
+    <div class="prog" role="progressbar" aria-valuemin="0" aria-valuemax="100" id="progWrap"><div id="progFill"></div></div>
+    <div id="statusLine">Ready. Connect to your server, pick models &amp; tasks, then run.</div>
+  </section>
+
+  <!-- ============ RESULTS ============ -->
+  <section id="resultsSection" hidden>
+    <div id="recoBanner"></div>
+
+    <h2 style="margin-bottom:10px">Summary — per model <button class="help-link" data-help="results" aria-label="Help: reading the results">?</button></h2>
+    <div class="card" style="padding:6px 12px"><table id="sumTable"></table></div>
+
+    <div class="charts">
+      <div class="chart"><h3>Avg generation speed (tokens/s — higher is better)</h3><div id="speedBars"></div></div>
+      <div class="chart"><h3>Avg time to first token (ms — lower is better)</h3><div id="ttftBars"></div></div>
+    </div>
+
+    <h2 style="margin-bottom:10px">All runs <span class="hint">(click a column header to sort)</span></h2>
+    <div class="card" style="padding:6px 12px"><table id="detailTable"></table></div>
+
+    <h2 style="margin-bottom:4px;margin-top:20px">Outputs — rate each with ★ (manual score overrides auto-judge)</h2>
+    <p class="hint">These are what you'd actually read from the model. Compare wording, correctness and format discipline.</p>
+    <div id="outGrid"></div>
+  </section>
+
+  <footer>
+    <details class="about">
+      <summary>About these metrics</summary>
+      <ul style="margin:6px 0;padding-left:20px">
+        <li><b>TTFT (time to first token)</b> — from request start until the first generated token. Includes prompt processing (prefill) and, on a cold server, model load time — which is why the warm-up pass matters.</li>
+        <li><b>Generation tok/s</b> — output tokens per second during decoding. Computed from server-reported token counts when available; otherwise estimated from text length and marked <span class="tag est">est</span>.</li>
+        <li><b>Prompt tok/s</b> — how fast the model digests your input prompt (only reported by some servers, e.g. Ollama).</li>
+        <li><b>Score 1–5</b> — quality rating: manual ★ from you, or auto-judge output (marked <span class="tag judge">judge</span>). Judge scores are approximate and biased if the model judges itself.</li>
+        <li>Runs execute <b>sequentially</b> so models never contend for CPU/GPU — that's what makes the numbers comparable.</li>
+      </ul>
+    </details>
+    <p style="margin-top:10px">Everything runs in your browser and is saved locally (localStorage). No data leaves your machine except to your own model server. Reasoning models emit “thinking” tokens before answering — those are included in timing, shown collapsed under each output.</p>
+    <details class="about" style="margin-top:12px">
+      <summary>License</summary>
+      <p style="margin:6px 0;font-size:13px">Free to use, copy, modify and share for any <b>non-commercial</b> purpose (personal use, learning, teaching). Commercial use — or use inside a commercial product/service — requires written permission from Nina. Think of it as CC BY-NC.</p>
+    </details>
+    <p style="margin-top:12px">© 2026 · Nina`s Bench · single file, zero dependencies · press <kbd>?</kbd> anytime for help</p>
+  </footer>
+</div>
+
+<script>
+"use strict";
+/* ================= helpers ================= */
+const $ = s => document.querySelector(s);
+function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
+const round1 = v => Math.round(v*10)/10;
+function uid(){try{return crypto.randomUUID();}catch(e){return 'id-'+Date.now()+'-'+Math.random().toString(36).slice(2);}}
+function avg(a){a=a.filter(x=>x!=null&&Number.isFinite(x));return a.length?a.reduce((s,v)=>s+v,0)/a.length:null;}
+function fms(v){if(v==null)return '—';return v>=1000?(v/1000).toFixed(2)+' s':Math.round(v)+' ms';}
+function ft(v){return v==null?'—':round1(v).toString();}
+function fsFromMs(v){return v==null?'—':(v/1000).toFixed(1)+' s';}
+function download(name, text, mime){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([text],{type:mime}));a.download=name;
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+}
+
+/* ================= state ================= */
+const LS_KEY='modelBench.v1';
+const DEFAULTS={
+  provider:'openai', url:'http://localhost:1234/v1', apiKey:'',
+  maxTokens:256, runs:1, temp:0.2, warmup:true,
+  judgeEnabled:false, judgeModel:'', noUsageOpt:false,
+  tasks:[
+    {name:'Quick fact', on:true, prompt:'In two short sentences, explain what a qubit is and how it differs from a classical bit.'},
+    {name:'Reasoning / math trap', on:true, prompt:'A farmer has 17 sheep. All but 9 run away. How many sheep are left? Show your one-line reasoning, then give the final number.'},
+    {name:'Coding', on:true, prompt:"Write a Python function longest_word(s) that returns the longest word in string s, ignoring punctuation around words. Return only the code, no explanation."},
+    {name:'Instruction following', on:true, prompt:'List exactly three causes of World War I as a numbered list. No intro sentence, no outro sentence, nothing else.'}
+  ]
+};
+const state={
+  ...structuredClone(DEFAULTS),
+  models:[], checkedModels:new Set(), results:[],
+  running:false, cancelled:false, sort:{key:'model', dir:1}
+};
+let activeCtrl=null;
+
+function saveState(){
+  try{
+    localStorage.setItem(LS_KEY, JSON.stringify({
+      v:1,
+      settings:{provider:state.provider,url:state.url,apiKey:state.apiKey,maxTokens:state.maxTokens,runs:state.runs,temp:state.temp,warmup:state.warmup,judgeEnabled:state.judgeEnabled,judgeModel:state.judgeModel,tasks:state.tasks},
+      checked:[...state.checkedModels],
+      results:state.results
+    }));
+  }catch(e){/* storage full/blocked — non-fatal */}
+}
+function loadState(){
+  try{
+    const raw=localStorage.getItem(LS_KEY); if(!raw)return;
+    const d=JSON.parse(raw);
+    Object.assign(state, {provider:d.settings?.provider??state.provider, url:d.settings?.url??state.url, apiKey:d.settings?.apiKey??'', maxTokens:+d.settings?.maxTokens||256, runs:Math.min(3,Math.max(1,+d.settings?.runs||1)), temp:Number(d.settings?.temp??0.2), warmup:d.settings?.warmup!==false, judgeEnabled:!!d.settings?.judgeEnabled, judgeModel:d.settings?.judgeModel||''});
+    if(Array.isArray(d.settings?.tasks)&&d.settings.tasks.length) state.tasks=d.settings.tasks;
+    (Array.isArray(d.checked)?d.checked:[]).forEach(m=>state.checkedModels.add(m));
+    if(Array.isArray(d.results)) state.results=d.results;
+  }catch(e){/* corrupt storage — start fresh */}
+}
+
+/* ================= provider / url utils ================= */
+const PROVIDER_DEFAULTS={openai:'http://localhost:1234/v1', ollama:'http://localhost:11434'};
+function normalizeUrl(provider,url){
+  let u=(url||'').trim().replace(/\/+$/,'');
+  if(!u) return '';
+  try{ new URL(u); }catch(e){ return u; } // not a full url yet — leave as typed
+  if(provider==='openai' && !/\/v1$/.test(u)) u=u+'/v1';
+  return u;
+}
+function joinUrl(base,path){return base.replace(/\/+$/,'')+path;}
+function authHeader(){return state.apiKey?{'Authorization':'Bearer '+state.apiKey}:{};}
+
+async function fetchWithTimeout(url, ms, init={}){
+  const ctrl=new AbortController();
+  const t=setTimeout(()=>ctrl.abort(), ms);
+  try{ return await fetch(url,{...init, signal:ctrl.signal}); }
+  finally{ clearTimeout(t); }
+}
+
+/* ================= models ================= */
+function setConn(msg,status){ // status: true=ok, false=error, null=pending
+  const el=$('#connStatus');
+  el.textContent=msg||'';
+  el.style.color = status===true ? 'var(--accent)' : status===false ? 'var(--red)' : '';
+}
+async function refreshModels(){
+  setConn('Connecting…', null);
+  state.url=normalizeUrl(state.provider,state.url); $('#urlInput').value=state.url;
+  try{
+    let list=[];
+    if(state.provider==='ollama'){
+      const r=await fetchWithTimeout(joinUrl(state.url,'/api/tags'),8000);
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      const j=await r.json();
+      list=(j.models||[]).map(m=>({name:m.name, info:[m.details?.size, m.details?.quantization_level].filter(Boolean).join(' · ')}));
+    }else{
+      const r=await fetchWithTimeout(joinUrl(state.url,'/models'),8000,{headers:authHeader()});
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      const j=await r.json();
+      list=(j.data||[]).map(m=>({name:m.id, info:''}));
+    }
+    state.models=list;
+    renderModels(); refreshJudgeOptions();
+    setConn(list.length?`Connected — ${list.length} model(s) available.`:'Connected, but no models found on this server.', true);
+  }catch(e){
+    const msg=e.name==='AbortError'?'timed out':e.message;
+    setConn(`Could not connect (${msg}). Check the URL, that the local server is running, and that it allows browser requests (CORS).`, false);
+  }
+}
+function renderModels(){
+  const box=$('#modelList'); box.innerHTML='';
+  if(!state.models.length){box.innerHTML='<div class="muted">No models fetched yet — connect to your server above.</div>';return;}
+  for(const m of state.models){
+    const lab=document.createElement('label');
+    lab.className='mitem';
+    lab.innerHTML=`<input type="checkbox" data-name="${esc(m.name)}" ${state.checkedModels.has(m.name)?'checked':''}>
+      <span class="mname">${esc(m.name)}</span>${m.info?`<span class="tag">${esc(m.info)}</span>`:''}`;
+    box.appendChild(lab);
+  }
+}
+$('#modelList').addEventListener('change',e=>{
+  const cb=e.target.closest('input[type=checkbox]'); if(!cb)return;
+  cb.checked?state.checkedModels.add(cb.dataset.name):state.checkedModels.delete(cb.dataset.name);
+});
+function setAllChecked(v){state.models.forEach(m=>v?state.checkedModels.add(m.name):state.checkedModels.delete(m.name));renderModels();}
+
+/* ================= tasks UI ================= */
+function renderTasks(){
+  const box=$('#tasksBox'); box.innerHTML='';
+  state.tasks.forEach((t,i)=>{
+    const row=document.createElement('div'); row.className='task-row';
+    row.innerHTML=`
+      <input type="checkbox" class="onchk" ${t.on?'checked':''} title="include this task">
+      <div class="task-main">
+        <input class="tname" value="${esc(t.name)}" style="max-width:280px" placeholder="Task name">
+        <textarea rows="2" class="tprompt" placeholder="Prompt…">${esc(t.prompt)}</textarea>
+      </div>
+      <button class="btn small danger del-task" title="remove task">✕</button>`;
+    const [onchk,nameIn,promptTa,delBtn]=row.querySelectorAll('.onchk,.tname,.tprompt,.del-task');
+    onchk.addEventListener('change',()=>{t.on=onchk.checked;saveState();});
+    nameIn.addEventListener('input',()=>{t.name=nameIn.value||('Task '+(i+1));saveState();});
+    promptTa.addEventListener('input',()=>{t.prompt=promptTa.value;saveState();});
+    delBtn.addEventListener('click',()=>{state.tasks.splice(i,1);renderTasks();saveState();});
+    box.appendChild(row);
+  });
+}
+$('#addTaskBtn').addEventListener('click',()=>{
+  state.tasks.push({name:'New task',prompt:'',on:true});
+  renderTasks(); saveState();
+  $('#tasksBox').scrollIntoView({behavior:'smooth'});
+});
+
+/* ================= settings controls wiring ================= */
+function bindSettings(){
+  const p=$('#providerSel'), u=$('#urlInput');
+  p.value=state.provider; u.value=state.url; $('#keyInput').value=state.apiKey||'';
+  const mtSel=$('#maxTokensSel');
+  mtSel.value=String(state.maxTokens);
+  if(mtSel.value!==String(state.maxTokens)){mtSel.value='256';state.maxTokens=256;} // saved value not in the options — snap back
+  $('#runsSel').value=String(state.runs);
+  $('#tempInput').value=state.temp;
+  $('#warmupChk').checked=!!state.warmup;
+  $('#judgeChk').checked=!!state.judgeEnabled;
+
+  p.addEventListener('change',()=>{
+    // if the URL field still holds the previous provider's default, swap to this one's default
+    const cur=$('#urlInput').value.trim();
+    if(!cur || PROVIDER_DEFAULTS[state.provider]===cur) $('#urlInput').value=PROVIDER_DEFAULTS[p.value];
+    state.provider=p.value; saveState(); refreshModels();
+  });
+  u.addEventListener('change',()=>{state.url=$('#urlInput').value;saveState();});
+  $('#keyInput').addEventListener('input',()=>{state.apiKey=$('#keyInput').value.trim();saveState();});
+  $('#maxTokensSel').addEventListener('change',e=>{state.maxTokens=+e.target.value;saveState();});
+  $('#runsSel').addEventListener('change',e=>{state.runs=Math.min(3,Math.max(1,+e.target.value));saveState();});
+  $('#tempInput').addEventListener('input',e=>{const v=parseFloat(e.target.value);if(Number.isFinite(v))state.temp=v;saveState();});
+  $('#warmupChk').addEventListener('change',e=>{state.warmup=e.target.checked;saveState();});
+  $('#judgeChk').addEventListener('change',e=>{state.judgeEnabled=e.target.checked;if(!state.judgeEnabled)$('#judgeModelSel').value='';saveState();});
+  $('#judgeModelSel').addEventListener('change',e=>{state.judgeModel=e.target.value;saveState();});
+
+  $('#connectBtn').addEventListener('click',refreshModels);
+  $('#selAllBtn').addEventListener('click',()=>setAllChecked(true));
+  $('#selNoneBtn').addEventListener('click',()=>setAllChecked(false));
+  refreshJudgeOptions();
+}
+function refreshJudgeOptions(){
+  const sel=$('#judgeModelSel'); const cur=state.judgeModel;
+  sel.innerHTML='<option value="">— pick judge model —</option>'+state.models.map(m=>`<option value="${esc(m.name)}">${esc(m.name)}</option>`).join('');
+  if(state.models.some(m=>m.name===cur)) sel.value=cur; else {sel.value=''; state.judgeModel='';}
+}
+
+/* ================= streaming + measurement ================= */
+async function* streamChat({url, body, signal}){
+  const res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json',...authHeader()},body:JSON.stringify(body),signal});
+  if(!res.ok){let msg='';try{msg=(await res.text()).slice(0,200);}catch(e){}throw new Error(`HTTP ${res.status} ${msg}`.trim());}
+  if(!res.body) throw new Error('no response body (streaming unsupported?)');
+  const reader=res.body.getReader();
+  const dec=new TextDecoder('utf-8');
+  let buf='';
+  while(true){
+    const {done,value}=await reader.read();
+    if(done) break;
+    buf+=dec.decode(value,{stream:true});
+    let i;
+    while((i=buf.indexOf('\n'))>=0){
+      const line=buf.slice(0,i).trim();
+      buf=buf.slice(i+1);
+      if(!line) continue;
+      const payload=line.startsWith('data:')?line.slice(5).trim():line; // handles both SSE and NDJSON
+      if(payload==='[DONE]') return;
+      try{ yield JSON.parse(payload); }catch(e){/* ignore partial/garbage lines */}
+    }
+  }
+}
+
+function makeStats(){return {pCount:0,pDurNs:0,cCount:0,cDurNs:0};}
+function absorb(src,s){
+  if(!src||typeof src!=='object')return;
+  const n=v=>{const x=Number(v);return Number.isFinite(x)&&x>0?x:0;};
+  s.pCount=Math.max(s.pCount,n(src.prompt_eval_count),n(src.prompt_tokens));
+  s.cCount=Math.max(s.cCount,n(src.eval_count),n(src.completion_tokens));
+  s.pDurNs=Math.max(s.pDurNs,n(src.prompt_eval_duration)); // nanoseconds (Ollama)
+  s.cDurNs=Math.max(s.cDurNs,n(src.eval_duration));          // nanoseconds (Ollama)
+}
+
+function buildBody(model,prompt,maxTokens,temp){
+  if(state.provider==='ollama'){
+    return {model, messages:[{role:'user',content:prompt}], stream:true, options:{num_predict:maxTokens, temperature:temp}};
+  }
+  const b={model, messages:[{role:'user',content:prompt}], stream:true, max_tokens:maxTokens, temperature:temp};
+  if(!state.noUsageOpt) b.stream_options={include_usage:true}; // exact token counts in final chunk (OpenAI-style servers)
+  return b;
+}
+
+async function measureCall(model,prompt,{maxTokens=state.maxTokens,temp=state.temp}={}){
+  const url=joinUrl(state.url, state.provider==='ollama'?'/api/chat':'/chat/completions');
+  let body;
+  for(let attempt=1;attempt<=2;attempt++){
+    try{ return await doMeasure(url,model,prompt,{maxTokens,temp}); }
+    catch(e){
+      // some OpenAI-compatible servers reject stream_options — retry once without it, fall back to estimated token counts
+      if(state.provider==='openai' && !state.noUsageOpt && e instanceof Error && /^HTTP 4\d\d/.test(e.message)){
+        state.noUsageOpt=true; saveState(); continue;
+      }
+      throw e;
+    }
+  }
+}
+
+async function doMeasure(url,model,prompt,opts){
+  const ctrl=new AbortController(); activeCtrl=ctrl;
+  const t0=performance.now();
+  let firstAt=null, output='', thinking='';
+  const stats=makeStats();
+  try{
+    for await(const obj of streamChat({url,body:buildBody(model,prompt,opts.maxTokens,opts.temp),signal:ctrl.signal})){
+      absorb(obj,stats); absorb(obj.usage,stats);
+      let content='', think='';
+      if(state.provider==='ollama'){
+        const c=obj.message?.content;
+        if(typeof c==='string') content=c;
+      }else{
+        const d=obj.choices&&obj.choices[0]&&obj.choices[0].delta;
+        if(d){
+          if(typeof d.content==='string') content=d.content;
+          if(typeof d.reasoning_content==='string') think=d.reasoning_content; // reasoning models (e.g. qwen3)
+        }
+      }
+      if(content||think){ if(firstAt===null) firstAt=performance.now(); output+=content; thinking+=think; }
+    }
+  }finally{ activeCtrl=null; }
+  const tEnd=performance.now();
+  const totalMs=tEnd-t0, ttftMs=(firstAt==null?totalMs:firstAt-t0);
+
+  let tokensOut=stats.cCount||null, genTps=null, estimated=false;
+  if(!tokensOut){ tokensOut=Math.max(1,Math.round((output.length+thinking.length)/4)); estimated=true; } // rough fallback: ~4 chars/token
+  if(stats.cDurNs>0) genTps=round1(tokensOut/(stats.cDurNs/1e9));
+  else{ const sec=(tEnd-(firstAt||t0))/1000; if(sec>0.02){genTps=round1(tokensOut/sec); if(!stats.cCount) estimated=true;} }
+
+  let promptTps=null;
+  if(stats.pDurNs>0&&stats.pCount>0) promptTps=round1(stats.pCount/(stats.pDurNs/1e9));
+
+  return {ttftMs:Math.round(ttftMs), totalMs:Math.round(totalMs), genTps, promptTps, tokensOut, estimated,
+          output, thinking};
+}
+
+/* ================= judge ================= */
+async function judgeOutput(judgeModel,taskPrompt,output){
+  const sys='You are an expert evaluator grading the ANSWER to a QUESTION on a 1-5 integer scale (1 = wrong or off-task, 5 = fully correct and follows all format constraints). Respond with ONLY minified JSON: {"score":<integer>,"reason":"<at most 20 words>"}. No markdown.';
+  const user=`===QUESTION===\n${taskPrompt}\n\n===ANSWER TO EVALUATE===\n${output}`;
+  let body;
+  if(state.provider==='ollama') body={model:judgeModel,messages:[{role:'system',content:sys},{role:'user',content:user}],stream:false};
+  else body={model:judgeModel,messages:[{role:'system',content:sys},{role:'user',content:user}],stream:false,max_tokens:120,temperature:0};
+  const url=joinUrl(state.url,state.provider==='ollama'?'/api/chat':'/chat/completions');
+  const res=await fetchWithTimeout(url,180000,{method:'POST',headers:{'Content-Type':'application/json',...authHeader()},body:JSON.stringify(body)});
+  if(!res.ok) throw new Error('HTTP '+res.status);
+  const j=await res.json();
+  let text='';
+  if(state.provider==='ollama') text=j.message?.content||'';
+  else text=(j.choices&&j.choices[0]&&j.choices[0].message&&j.choices[0].message.content)||'';
+  let score=null, reason='';
+  try{const o=JSON.parse(text); if(Number.isFinite(+o.score))score=Math.min(5,Math.max(1,+o.score)); if(typeof o.reason==='string')reason=o.reason;}catch(e){}
+  if(score==null){const m=text.match(/"score"\s*:\s*(\d+)/); if(m)score=Math.min(5,Math.max(1,+m[1]));}
+  if(score==null){const m2=text.match(/\b([1-5])\b/); if(m2)score=+m2[1];}
+  const rm=text.match(/"reason"\s*:\s*"((?:[^"\\]|\\.)*)"/); if(rm&&!reason)reason=rm[1].slice(0,300);
+  return {score, reason};
+}
+
+/* ================= run orchestration ================= */
+function setProg(done,total){
+  const pct=total?Math.round(done/total*100):0;
+  $('#progFill').style.width=pct+'%';
+  $('#progWrap').setAttribute('aria-valuenow',String(pct));
+}
+function setStatus(msg,cls=''){const el=$('#statusLine');el.textContent=msg;el.className=cls;}
+
+async function runBench(){
+  const models=state.models.filter(m=>state.checkedModels.has(m.name));
+  const tasks=state.tasks.filter(t=>t.on&&t.prompt.trim());
+  if(!models.length){setStatus('Select at least one model to test.', 'err');return;}
+  if(!tasks.length){setStatus('Enable at least one task with a prompt.', 'err');return;}
+
+  state.running=true; state.cancelled=false;
+  $('#runBtn').disabled=true; $('#cancelBtn').disabled=false;
+  const totalSteps=(state.warmup?models.length:0)+models.length*tasks.length*state.runs+(state.judgeEnabled&&state.judgeModel?tasks.reduce((n,t)=>n+models.length*state.runs,0):0);
+  let done=0;
+  state.results=[]; renderResults();
+
+  try{
+    if(state.warmup){
+      for(const m of models){
+        if(state.cancelled)break;
+        setStatus(`Warming up ${m.name} (loading weights)…`);
+        const t0=performance.now();
+        try{ await measureCall(m.name,'Reply with exactly one word: OK',{maxTokens:8,temp:0}); }catch(e){/* warmup errors are fine */}
+        setStatus(`Warmed up ${m.name} in ${((performance.now()-t0)/1000).toFixed(1)} s`);
+        setProg(++done,totalSteps);
+      }
+    }
+
+    for(const m of models){
+      if(state.cancelled)break;
+      for(const task of tasks){
+        for(let run=1;run<=state.runs && !state.cancelled;run++){
+          setStatus(`${m.name} · ${task.name} · run ${run}/${state.runs}`);
+          const row={id:uid(),ts:Date.now(),model:m.name,taskName:task.name,prompt:task.prompt,run,score:null,scoreSource:null,judgeReason:null,error:null};
+          try{
+            Object.assign(row, await measureCall(m.name,task.prompt));
+          }catch(e){
+            if(state.cancelled)break;
+            row.error=(e.name==='AbortError')?'cancelled':e.message;
+            row.output='';row.thinking='';
+          }
+          state.results.push(row); renderResults(); setProg(++done,totalSteps);
+        }
+      }
+    }
+
+    if(!state.cancelled && state.judgeEnabled && state.judgeModel){
+      const rows=state.results.filter(r=>!r.error&&r.output.trim()&&r.score==null);
+      let k=0;
+      for(const r of rows){
+        if(state.cancelled)break;
+        setStatus(`Judging ${++k}/${rows.length}: ${r.model} · ${r.taskName}`);
+        try{
+          const j=await judgeOutput(state.judgeModel,r.prompt,r.output);
+          if(j.score!=null){r.score=j.score;r.scoreSource='judge';if(j.reason)r.judgeReason=j.reason;}
+        }catch(e){ r.judgeReason='judge failed: '+((e.name==='AbortError')?'timeout':e.message); }
+        renderResults(); setProg(++done,totalSteps);
+      }
+    }
+
+    if(!state.cancelled) setProg(totalSteps,totalSteps); // skipped judge steps (empty/error rows) shouldn't leave the bar short
+    setStatus(state.cancelled?'Cancelled — partial results kept below.':'Done. Compare the summary, rate outputs with ★ if you like, then export.', state.cancelled?'err':'ok');
+  }catch(e){
+    setStatus('Unexpected error: '+e.message,'err');
+  }finally{
+    state.running=false; $('#runBtn').disabled=false; $('#cancelBtn').disabled=true;
+    saveState(); renderResults();
+  }
+}
+$('#runBtn').addEventListener('click',runBench);
+$('#cancelBtn').addEventListener('click',()=>{state.cancelled=true;activeCtrl&&activeCtrl.abort();});
+
+/* ================= results: summary / charts / table / outputs ================= */
+function summarize(){
+  const byModel={};
+  for(const r of state.results)(byModel[r.model]??=[]).push(r);
+  return Object.entries(byModel).map(([model,rows])=>{
+    const ok=rows.filter(r=>!r.error);
+    return {
+      model,n:rows.length,errors:rows.length-ok.length,
+      minTtft:ok.some(r=>r.ttftMs!=null)?Math.min(...ok.map(r=>r.ttftMs).filter(v=>v!=null)):null,
+      avgTps:avg(ok.map(r=>r.genTps)),
+      promptTps:avg(ok.map(r=>r.promptTps)),
+      tokensTotal:ok.reduce((a,r)=>a+(r.tokensOut||0),0),
+      avgScore:avg(rows.map(r=>r.score)), scored:rows.filter(r=>r.score!=null).length,
+      anyEst:ok.some(r=>r.estimated)
+    };
+  });
+}
+
+/* strip a trailing quant tag (q4_k_m, q8_0, gptq-int4, bf16 …) to find the base family */
+function splitQuant(name){
+  const m=name.toLowerCase().match(/^(.+?)[-_]((?:q\d+[_a-z0-9]*|gptq[a-z0-9_-]*|int[248]|float16|bf16|fp16))$/);
+  return m?{base:m[1],quant:m[2]}:{base:name,quant:null};
+}
+function rankSummaries(sum){
+  const hasScores=sum.some(s=>s.avgScore!=null&&s.scored>0);
+  const key=s=>hasScores?[ (s.avgScore==null?-99:s.avgScore), (s.avgTps==null?-99:s.avgTps) ]:[ (s.avgTps==null?-99:s.avgTps) ];
+  return [...sum].sort((a,b)=>{const ka=key(a),kb=key(b);for(let i=0;i<ka.length;i++){if(ka[i]!==kb[i])return kb[i]-ka[i];}return a.model.localeCompare(b.model);});
+}
+
+function renderResults(){
+  const has=state.results.length>0;
+  $('#resultsSection').hidden=!has;
+  $('#exportCsvBtn').disabled=$('#exportJsonBtn').disabled=$('#clearResultsBtn').disabled=!has;
+  if(!has)return;
+  const sum=summarize();
+  const ranked=rankSummaries(sum);
+  const hasScores=sum.some(s=>s.avgScore!=null&&s.scored>0);
+
+  /* banner */
+  const ban=$('#recoBanner');
+  if(ranked.length>=2){
+    const top=ranked[0];
+    let html=`<b>${hasScores?'Recommended (quality first, then speed):':'Fastest:'}</b> <span class="tag judge" style="margin-left:6px">★</span> ${esc(top.model)}`;
+    html+=` — avg score ${top.avgScore!=null?round1(top.avgScore)+' / 5':'n/a'} · ${ft(top.avgTps)} tok/s · TTFT ${fms(top.minTtft)}.`;
+    const fams={};
+    sum.forEach(s=>{const {base,quant}=splitQuant(s.model);if(quant&&(base.length>=3)){(fams[base]??=[]).push({s,quant});}});
+    const lines=Object.entries(fams).filter(([b,list])=>list.length>=2)
+      .map(([b,list])=>{const best=[...list].sort((a,b2)=>((b2.s.avgScore??-1)-(a.s.avgScore??-1))||((b2.s.avgTps??-1)-(a.s.avgTps??-1)))[0];return `<li><b>${esc(b)}</b> → best quant: <span class="tag">${esc(best.quant).toUpperCase()}</span> ${best.s.avgScore!=null?`(${round1(best.s.avgScore)}/5, `:''}${ft(best.s.avgTps)} tok/s)</li>`;});
+    if(lines.length) html+=`<ul>${lines.join('')}</ul>`;
+    ban.className='banner good'; ban.innerHTML=html;
+  }else{
+    const top=ranked[0];
+    ban.className='banner neutral';
+    ban.innerHTML=`Benchmarked <b>1 model</b>: ${esc(top.model)} — ${ft(top.avgTps)} tok/s, TTFT ${fms(top.minTtft)}. Add more models/quants to see a comparison and recommendation.`;
+  }
+
+  /* summary table */
+  const st=$('#sumTable');
+  st.innerHTML=`<thead><tr>
+    <th>Model</th><th class="num">Runs</th><th class="num">Best TTFT</th>
+    <th class="num">Avg gen tok/s</th><th class="num">Prompt tok/s</th><th class="num">Tokens out</th>
+    <th class="num">Score (1–5)</th><th>Verdict</th></tr></thead><tbody>`+
+  ranked.map((s,i)=>`<tr class="${i===0&&ranked.length>=2?'top-row':''}">
+    <td>${esc(s.model)}${s.anyEst?'<span class="tag est">est tokens</span>':''}</td>
+    <td class="num">${s.n}${s.errors?` <span class="err-text" title="${s.errors} failed run(s)">(${s.errors} err)</span>`:''}</td>
+    <td class="num">${fms(s.minTtft)}</td><td class="num"><b>${ft(s.avgTps)}</b></td>
+    <td class="num">${ft(s.promptTps)=== '—'?'—':ft(s.promptTps)}</td><td class="num">${s.tokensTotal||0}</td>
+    <td class="num">${s.avgScore!=null?round1(s.avgScore)+' ('+s.scored+')':'<span class="muted">not rated</span>'}</td>
+    <td>${i===0&&ranked.length>=2?'<span style="color:var(--accent);font-weight:700">★ best pick</span>':''}</td></tr>`).join('')+'</tbody>';
+
+  /* charts */
+  const bar=(container,items,valFmt,colorClass)=>{
+    container.innerHTML='';
+    if(!items.length){container.innerHTML='<div class="muted">no data yet</div>';return;}
+    const max=Math.max(...items.map(i=>i.v).filter(v=>v!=null&&isFinite(v)),0);
+    for(const it of items.sort((a,b)=>(b.v??-1)-(a.v??-1))){
+      const w=max>0&&it.v!=null?Math.max(2,Math.round(it.v/max*100)):0;
+      const row=document.createElement('div');row.className='bar-row';
+      row.innerHTML=`<span class="bar-label" title="${esc(it.label)}">${esc(it.label)}</span>
+        <span class="bar-track"><span class="bar-fill ${colorClass||''}" style="width:${w}%"></span></span>
+        <span class="bar-val">${it.v==null?'—':valFmt(it.v)}</span>`;
+      container.appendChild(row);
+    }
+  };
+  bar($('#speedBars'),ranked.map(s=>({label:s.model,v:s.avgTps})),v=>round1(v).toString()+' t/s','');
+  bar($('#ttftBars'),ranked.map(s=>({label:s.model,v:s.minTtft})),v=>fms(v),'lat');
+
+  renderDetailTable(); renderOutputs();
+}
+
+function detailRows(){
+  const rows=[...state.results];
+  const {key,dir}=state.sort;
+  const val=r=>{switch(key){case 'model':return r.model;case 'task':return r.taskName;case 'run':return r.run;
+    case 'ttftMs':return r.ttftMs;case 'promptTps':return r.promptTps;case 'genTps':return r.genTps;
+    case 'tokensOut':return r.tokensOut;case 'totalMs':return r.totalMs;case 'score':return r.score;}return null;};
+  rows.sort((a,b)=>{const va=val(a),vb=val(b);
+    if(va==null&&vb==null)return a.model.localeCompare(b.model)||a.taskName.localeCompare(b.taskName);
+    if(va==null)return 1; if(vb==null)return -1; // nulls always last, regardless of direction
+    return (typeof va==='string'?va.localeCompare(vb):va-vb)*dir;});
+  return rows;
+}
+function renderDetailTable(){
+  const t=$('#detailTable');
+  const H=(k,label,num)=>`<th data-key="${k}" class="${num?'num':''}">${label}${state.sort.key===k?(state.sort.dir>0?' ↑':' ↓'):''}</th>`;
+  t.innerHTML=`<thead><tr>${H('model','Model')}${H('task','Task')}${H('run','Run')}
+    ${H('ttftMs','TTFT',1)}${H('promptTps','Prompt tok/s',1)}${H('genTps','Gen tok/s',1)}${H('tokensOut','Tokens',1)}
+    ${H('totalMs','Total',1)}${H('score','Score',1)}<th>Notes</th></tr></thead><tbody>`+
+  detailRows().map(r=>`<tr>
+    <td>${esc(r.model)}</td><td>${esc(r.taskName)}</td><td class="num">${r.run}</td>
+    <td class="num">${fms(r.ttftMs)}</td>
+    <td class="num">${r.promptTps==null?'—':round1(r.promptTps)}</td>
+    <td class="num"><b>${ft(r.genTps)}</b></td><td class="num">${r.tokensOut??0}</td>
+    <td class="num">${fsFromMs(r.totalMs)}</td>
+    <td class="num">${r.score!=null?round1(r.score)+(r.scoreSource==='judge'?' <span class="tag judge">judge</span>':''):'<span class="muted">—</span>'}</td>
+    <td>${r.error?`<span class="err-text">${esc(r.error)}</span>`:(r.estimated?'<span class="tag est">est</span>':'')}</td></tr>`).join('')+'</tbody>';
+}
+// delegate on the table itself — the <thead> is recreated on every render, so a direct listener would be lost (and null at first load)
+$('#detailTable').addEventListener('click',e=>{
+  const th=e.target.closest('th[data-key]'); if(!th)return;
+  const k=th.dataset.key;
+  state.sort = state.sort.key===k ? {key:k,dir:-state.sort.dir} : {key:k,dir:1};
+  renderDetailTable();
+});
+
+function renderOutputs(){
+  const grid=$('#outGrid'); grid.innerHTML='';
+  const taskNames=[...new Set(state.results.map(r=>r.taskName))];
+  for(const tn of taskNames){
+    const head=document.createElement('div');head.className='task-head';
+    head.innerHTML=`<h3>📝 ${esc(tn)}</h3>`;
+    grid.appendChild(head);
+    for(const r of state.results.filter(x=>x.taskName===tn)){
+      const card=document.createElement('div');card.className='out-card';
+      const score=r.score!=null?Math.round(r.score):0;
+      card.innerHTML=`
+        <div class="out-head">
+          <span class="out-model" title="${esc(r.prompt)}">${esc(r.model)}</span>
+          <span style="display:flex;gap:10px;align-items:center">
+            <span class="muted">${ft(r.genTps)} t/s · ${fms(r.ttftMs)}</span>
+            <div class="stars" data-id="${r.id}">${[1,2,3,4,5].map(v=>`<button class="star${v<=score?' on':''}" data-val="${v}" aria-label="rate ${v}">★</button>`).join('')}</div>
+          </span>
+        </div>
+        ${r.error?`<div class="err-text">${esc(r.error)}</div>`:''}
+        ${r.thinking?`<details class="think"><summary>thinking (${r.thinking.length} chars)</summary><pre class="out-text" style="max-height:200px">${esc(r.thinking)}</pre></details>`:''}
+        <pre class="out-text">${esc(r.output)||'<span class="muted">(empty output)</span>'}</pre>
+        ${r.scoreSource==='judge'&&r.judgeReason?`<div class="judge-reason">🧑‍⚖️ judge: ${round1(r.score)}/5 — ${esc(r.judgeReason)}</div>`:''}
+        <div style="display:flex;justify-content:flex-end"><button class="btn small copy-out" data-id="${r.id}">Copy output</button></div>`;
+      grid.appendChild(card);
+    }
+  }
+}
+
+/* star rating + copy (event delegation) */
+$('#outGrid').addEventListener('click',e=>{
+  const star=e.target.closest('.star');
+  if(star){
+    const id=star.parentElement.dataset.id, val=+star.dataset.val;
+    const r=state.results.find(x=>x.id===id); if(!r)return;
+    r.score=val; r.scoreSource='manual'; r.judgeReason=null;
+    saveState(); renderResults(); return;
+  }
+  const cp=e.target.closest('.copy-out');
+  if(cp){
+    const r=state.results.find(x=>x.id===cp.dataset.id); if(!r)return;
+    navigator.clipboard?.writeText(r.output||'').catch(()=>{});
+    cp.textContent='Copied ✓'; setTimeout(()=>cp.textContent='Copy output',1200);
+  }
+});
+
+/* ================= export / clear ================= */
+function csvCell(v){v=String(v??'');return /[",\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
+$('#exportCsvBtn').addEventListener('click',()=>{
+  const head=['model','task','run','ttft_ms','gen_tps','prompt_tps','tokens_out','total_s','score','score_source','estimated','error'];
+  const lines=[head.join(',')];
+  for(const r of state.results){
+    lines.push([r.model,r.taskName,r.run,r.ttftMs??'',r.genTps??'',r.promptTps??'',r.tokensOut??'',
+      r.totalMs!=null?(r.totalMs/1000).toFixed(3):'',r.score??'',r.scoreSource||'',r.estimated?'yes':'',r.error||''].map(csvCell).join(','));
+  }
+  download(`ninas-bench-${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.csv`,lines.join('\n'),'text/csv');
+});
+$('#exportJsonBtn').addEventListener('click',()=>{
+  download(`ninas-bench-${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.json`,JSON.stringify({exportedAt:new Date().toISOString(),settings:{...state,tasks:state.tasks},results:state.results},null,2),'application/json');
+});
+$('#clearResultsBtn').addEventListener('click',()=>{
+  if(!confirm('Clear all benchmark results?'))return;
+  state.results=[]; saveState(); renderResults(); setStatus('Results cleared.');
+});
+
+/* ================= init ================= */
+loadState();
+bindSettings();
+renderTasks();
+renderModels();
+if(state.models.length===0) refreshModels(); // silently try to populate the model list on load
+renderResults();
+setStatus(state.results.length?`Loaded ${state.results.length} saved run(s) from your last session.`:'Ready. Connect to your server, pick models & tasks, then run.','ok');
+</script>
+
+<!-- ============ HELP MODAL ============ -->
+<div id="helpOverlay" class="help-overlay" role="dialog" aria-modal="true" aria-labelledby="helpTitle" hidden>
+  <div class="help-modal">
+    <header class="help-header">
+      <h2 id="helpTitle">📖 Nina`s Bench — Help &amp; guide</h2>
+      <button id="helpCloseBtn" class="help-close" aria-label="Close help (Esc)" title="Close (Esc)">&times;</button>
+    </header>
+    <div class="help-body">
+      <nav class="help-toc" aria-label="Help sections">
+        <button class="toc-link active" data-target="help-start">Getting started</button>
+        <button class="toc-link" data-target="help-server">Server setup</button>
+        <button class="toc-link" data-target="help-models">Models &amp; quants</button>
+        <button class="toc-link" data-target="help-suite">Suite &amp; settings</button>
+        <button class="toc-link" data-target="help-judge">Judge model</button>
+        <button class="toc-link" data-target="help-running">Running a benchmark</button>
+        <button class="toc-link" data-target="help-results">Reading results</button>
+        <button class="toc-link" data-target="help-metrics">Metrics glossary</button>
+        <button class="toc-link" data-target="help-troubleshooting">Troubleshooting</button>
+        <button class="toc-link" data-target="help-data">Data &amp; privacy</button>
+        <button class="toc-link" data-target="help-shortcuts">Shortcuts</button>
+        <button class="toc-link" data-target="help-license">About &amp; license</button>
+      </nav>
+      <div class="help-content" id="helpContent">
+
+        <section class="help-section" id="help-start">
+          <h3>Getting started</h3>
+          <p>Nina`s Bench measures how your local models actually perform on the machine you're sitting at — then tells you which model (and which quant) to keep. Four steps:</p>
+          <ol>
+            <li><b>Connect</b> to your local server (LM Studio or Ollama) in section 1.</li>
+            <li><b>Select the models &amp; quants</b> you want to compare — several quants of the same base model is the classic setup.</li>
+            <li><b>Check the suite</b> — the default tasks cover a quick fact, a math trap, code and instruction-following. Edit or add your own.</li>
+            <li><b>Run</b> and read the recommendation banner at the top of the results.</li>
+          </ol>
+          <div class="callout tip">Tip: keep <b>warm-up pass</b> on — it loads each model's weights once with a tiny prompt, so your TTFT numbers measure real inference instead of cold-start.</div>
+        </section>
+
+        <section class="help-section" id="help-server">
+          <h3>Server setup</h3>
+          <p>Nina`s Bench talks to your server through the normal browser API — nothing to install.</p>
+          <table class="help-table">
+            <thead><tr><th>Provider</th><th>Default URL</th><th>Notes</th></tr></thead>
+            <tbody>
+              <tr><td>LM Studio / OpenAI-compatible</td><td><code>http://localhost:1234/v1</code></td><td>In LM Studio: Developer tab → Start server. If the browser is blocked by CORS, enable it in the server settings.</td></tr>
+              <tr><td>Ollama</td><td><code>http://localhost:11434</code></td><td>Start <code>ollama serve</code>. No <code>/v1</code> suffix. Ollama reports prompt tok/s, so you get more metrics.</td></tr>
+            </tbody>
+          </table>
+          <p>The <b>API key</b> field is optional — local servers usually don't need one. Add it only if your server asks for a Bearer token.</p>
+          <div class="callout warn">“Could not connect (…)”? The three usual causes: the server isn't running, the URL/port is wrong, or the browser is blocked by CORS. Open devtools (F12) — the network error tells you which one it is.</div>
+        </section>
+
+        <section class="help-section" id="help-models">
+          <h3>Models &amp; quants</h3>
+          <p>Every entry in the list is <b>one model + one quant</b>. To compare quantization quality head-to-head, select several quants of the same base model (e.g. <code>qwen3-4b-q4_k_m</code> and <code>qwen3-4b-q8_0</code>) — the results banner then recommends the best quant per family.</p>
+          <ul>
+            <li><b>Select all / Clear selection</b> (or press <kbd>A</kbd> / <kbd>N</kbd>) toggle every entry at once.</li>
+            <li>Ollama shows size and quant level as a tag next to the name; OpenAI-compatible servers show whatever they report.</li>
+            <li>Your selection is remembered between sessions.</li>
+          </ul>
+        </section>
+
+        <section class="help-section" id="help-suite">
+          <h3>Benchmark suite &amp; settings</h3>
+          <p><b>Tasks</b> — each task is a prompt you can edit, add or remove (the checkbox includes it in the run). Answers are capped by the max-token limit so every model gets the same budget and runs stay fast.</p>
+          <table class="help-table">
+            <thead><tr><th>Setting</th><th>What it does</th></tr></thead>
+            <tbody>
+              <tr><td>Max tokens per answer</td><td>Hard cap on each answer. Keep it the same for every model — comparability matters more than long answers.</td></tr>
+              <tr><td>Runs per model × task</td><td>1 = fast, 3 = most stable (results are averaged). Use 2–3 when deciding between close models.</td></tr>
+              <tr><td>Temperature</td><td>0.2 by default — low enough for reproducible answers. Set 0 for coding tasks; raise it to test creative output.</td></tr>
+              <tr><td>Warm-up pass</td><td>Sends a tiny prompt to each model first and excludes that call from the results. Recommended: without it, the first task includes cold model load time.</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section class="help-section" id="help-judge">
+          <h3>Auto-scoring with a judge model</h3>
+          <p>Tick <b>Auto-score quality with a judge model</b> and pick a judge from the dropdown. After every run, the judge reads each output and grades it 1–5 as strict JSON, so you get quality scores without clicking stars yourself.</p>
+          <ul>
+            <li><b>Use a different — ideally stronger — model as judge</b> when possible; a model judging itself is biased in its own favour.</li>
+            <li>Judging adds one extra API call per output, so it lengthens the run.</li>
+            <li>Manual ★ ratings always override the judge score.</li>
+          </ul>
+        </section>
+
+        <section class="help-section" id="help-running">
+          <h3>Running a benchmark</h3>
+          <p>Click <b>Run benchmark</b>. The progress bar and status line follow every step: warm-up (if enabled), then each model × task × run, then judging (if enabled).</p>
+          <ul>
+            <li>Runs execute <b>sequentially</b>, so models never contend for CPU/GPU — that's what makes the numbers comparable.</li>
+            <li><b>Cancel</b> (or press <kbd>C</kbd>) stops at the next boundary and keeps everything measured so far.</li>
+            <li>Reasoning models emit “thinking” tokens before answering; those are included in timing and shown collapsed under each output.</li>
+          </ul>
+        </section>
+
+        <section class="help-section" id="help-results">
+          <h3>Reading the results</h3>
+          <p><b>The banner</b> is the headline: with scores it recommends quality-first (then speed); without scores it names the fastest model. When you've benchmarked several quants of one base, it lists the best quant per family.</p>
+          <ul>
+            <li><b>Summary table</b> — per-model averages: runs, best TTFT, avg generation speed, prompt speed, tokens out, score. The top row is highlighted as “best pick”.</li>
+            <li><b>Charts</b> — generation speed (higher is better) and time-to-first-token (lower is better).</li>
+            <li><b>All runs table</b> — click any column header to sort; empty values always sink to the bottom.</li>
+            <li><b>Outputs grid</b> — the actual answers, grouped by task. Rate them with ★ (manual score overrides auto-judge), copy them, or expand the collapsed thinking of reasoning models.</li>
+          </ul>
+          <p><b>Export CSV / JSON</b> saves the whole results set for spreadsheets or archiving. <b>Clear results</b> wipes the runs (settings survive).</p>
+        </section>
+
+        <section class="help-section" id="help-metrics">
+          <h3>Metrics glossary</h3>
+          <table class="help-table">
+            <thead><tr><th>Metric</th><th>Meaning</th><th>Better</th></tr></thead>
+            <tbody>
+              <tr><td>TTFT (ms)</td><td>Time to first token — request start until the first generated token. Includes prompt processing (prefill) and, on a cold server, model load time.</td><td>Lower</td></tr>
+              <tr><td>Gen tok/s</td><td>Output tokens per second during decoding. Server-reported counts when available; otherwise estimated from text length and marked <span class="tag est">est</span>.</td><td>Higher</td></tr>
+              <tr><td>Prompt tok/s</td><td>How fast the model digests your input prompt (only reported by some servers, e.g. Ollama).</td><td>Higher</td></tr>
+              <tr><td>Score 1–5</td><td>Quality rating — your manual ★ or the auto-judge (marked <span class="tag judge">judge</span>). Judge scores are approximate.</td><td>Higher</td></tr>
+              <tr><td>Total (s)</td><td>Wall time of the whole call, including thinking tokens.</td><td>Lower</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section class="help-section" id="help-troubleshooting">
+          <h3>Troubleshooting</h3>
+          <ul>
+            <li><b>“Could not connect (timed out / Failed to fetch)”</b> — server not running, wrong URL/port, or CORS. LM Studio: enable CORS in the Developer → Server settings. Ollama on another machine: set <code>OLLAMA_ORIGINS</code>.</li>
+            <li><b>“Connected, but no models found”</b> — the endpoint is reachable but returned an empty list; check you're pointing at the right server.</li>
+            <li><b>First run looks slow</b> — that's model load. Keep warm-up on and compare runs 2+.</li>
+            <li><b>“est” tags everywhere</b> — your server doesn't report token counts in the stream. Speeds are still measured from wall time; token counts are approximated at ~4 chars/token.</li>
+            <li><b>Judge failed / timeout</b> — the judge call has a 3-minute timeout; small models on slow CPUs can exceed it. Retry or pick a faster judge.</li>
+            <li><b>Numbers drift between runs</b> — close other GPU-hungry apps (browsers with WebGL, video), use runs = 2–3 and read the averages.</li>
+          </ul>
+        </section>
+
+        <section class="help-section" id="help-data">
+          <h3>Data &amp; privacy</h3>
+          <p>Everything runs in your browser. Settings, task edits and results are stored in <b>localStorage</b> under the key <code>modelBench.v1</code> — nothing is uploaded anywhere except to your own model server.</p>
+          <ul>
+            <li><b>Clear results</b> removes runs but keeps settings; clearing browser site data resets everything.</li>
+            <li><b>Export JSON</b> is a full backup of settings + results if you want them across machines.</li>
+          </ul>
+        </section>
+
+        <section class="help-section" id="help-shortcuts">
+          <h3>Keyboard shortcuts</h3>
+          <table class="help-table">
+            <thead><tr><th>Action</th><th>Key</th></tr></thead>
+            <tbody>
+              <tr><td>Open help</td><td><kbd>?</kbd></td></tr>
+              <tr><td>Close help</td><td><kbd>Esc</kbd></td></tr>
+              <tr><td>Select all models</td><td><kbd>A</kbd></td></tr>
+              <tr><td>Clear selection</td><td><kbd>N</kbd></td></tr>
+              <tr><td>Run benchmark</td><td><kbd>R</kbd></td></tr>
+              <tr><td>Cancel (while running)</td><td><kbd>C</kbd></td></tr>
+            </tbody>
+          </table>
+          <p class="hint" style="margin-top:8px">Shortcuts pause while you're typing in a field, and (except Esc/Tab) only work when help is closed.</p>
+        </section>
+
+        <section class="help-section" id="help-license">
+          <h3>About &amp; license</h3>
+          <p><b>Nina`s Bench</b> is a single HTML file with zero dependencies — no build step, no CDNs, no telemetry.</p>
+          <p>License: free to use, copy, modify and share for any <b>non-commercial</b> purpose. Commercial use requires written permission from Nina (think CC BY-NC).</p>
+        </section>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ================= help system (runs after the modal markup above) ================= */
+const helpOverlay=$('#helpOverlay');
+const helpContentPane=$('#helpContent');
+const helpSections=[...helpContentPane.querySelectorAll('.help-section')];
+const tocLinks=[...document.querySelectorAll('.toc-link')];
+let helpReturnEl=null;
+function setTocActive(id){tocLinks.forEach(l=>l.classList.toggle('active',l.dataset.target===id));}
+function openHelp(sectionId){
+  helpReturnEl=document.activeElement;
+  helpOverlay.hidden=false;
+  document.body.style.overflow='hidden'; // stop background scroll while the dialog is open
+  const target=sectionId?helpContentPane.querySelector('#'+CSS.escape(sectionId)):null;
+  if(target){ target.scrollIntoView({behavior:'smooth',block:'start'}); setTocActive(sectionId); }
+  else{ helpContentPane.scrollTop=0; setTocActive(helpSections[0].id); }
+  $('#helpCloseBtn').focus();
+}
+function closeHelp(){
+  helpOverlay.hidden=true;
+  document.body.style.overflow='';
+  if(helpReturnEl&&typeof helpReturnEl.focus==='function') helpReturnEl.focus(); // return focus to the opener
+}
+$('#helpBtn').addEventListener('click',()=>openHelp());
+$('#helpCloseBtn').addEventListener('click',closeHelp);
+helpOverlay.addEventListener('click',e=>{if(e.target===helpOverlay) closeHelp();});
+tocLinks.forEach(l=>l.addEventListener('click',()=>openHelp(l.dataset.target)));
+document.querySelectorAll('.help-link').forEach(b=>b.addEventListener('click',()=>openHelp(b.dataset.help)));
+helpContentPane.addEventListener('scroll',()=>{
+  const top=helpContentPane.scrollTop+90; let current=helpSections[0].id;
+  for(const s of helpSections){ if(s.offsetTop-helpContentPane.offsetTop<=top) current=s.id; }
+  setTocActive(current);
+},{passive:true});
+document.addEventListener('keydown',e=>{
+  if(!helpOverlay.hidden){ // dialog open: Esc closes, Tab is trapped inside
+    if(e.key==='Escape'){e.preventDefault();closeHelp();return;}
+    if(e.key==='Tab'){
+      const f=[...helpOverlay.querySelectorAll('button,[href],input,select,textarea')].filter(el=>!el.disabled&&el.offsetParent!==null);
+      if(!f.length)return;
+      const first=f[0],last=f[f.length-1];
+      if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}
+      else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}
+    }
+    return;
+  }
+  if(e.target.closest('input,textarea,select')) return; // don't hijack typing
+  const k=e.key.toLowerCase();
+  if(k==='?'){e.preventDefault();openHelp();}
+  else if(k==='a'&&!e.ctrlKey&&!e.metaKey){e.preventDefault();setAllChecked(true);}
+  else if(k==='n'&&!e.ctrlKey&&!e.metaKey){e.preventDefault();setAllChecked(false);}
+  else if(k==='r'&&!e.ctrlKey&&!e.metaKey){e.preventDefault();if(!state.running)$('#runBtn').click();}
+  else if(k==='c'&&!e.ctrlKey&&!e.metaKey){e.preventDefault();if(state.running)$('#cancelBtn').click();}
+});
+window.openHelp=openHelp; // handy for scripts / quick testing
+</script>
+
+</body>
+</html>
